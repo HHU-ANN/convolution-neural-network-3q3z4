@@ -1,110 +1,140 @@
-# 在该文件NeuralNetwork类中定义你的模型 
-# 在自己电脑上训练好模型，保存参数，在这里读取模型参数（不要使用JIT读取），在main中返回读取了模型参数的模型
-
-import os
-
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torchvision
+import torchvision.datasets as dset
+import torchvision.transforms as transforms
+from torch.autograd import Variable
 
-from torch.utils.data import DataLoader
-    
 
-class NeuralNetwork(nn.Module):
-    def __init__(self):
-        super(NeuralNetwork, self).__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(64),
-            nn.Conv2d(64, 64, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(64),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(128),
-            nn.Conv2d(128, 128, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(128),
-            nn.MaxPool2d(kernel_size=2, stride=2)
-        )
-        self.classifier = nn.Sequential(
-            nn.Linear(128 * 8 * 8, 512),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(512),
-            nn.Linear(512, 10)
-        )
+# 定义AlexNet模型
+class AlexNet(nn.Module):
+    def __init__(self, num_classes=10):
+        super(AlexNet, self).__init__()
+
+        # 定义卷积层和池化层
+        self.conv_layer1 = nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1)
+        self.relu1 = nn.ReLU(inplace=True)
+        self.maxpool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.conv_layer2 = nn.Conv2d(64, 192, kernel_size=3, padding=1)
+        self.relu2 = nn.ReLU(inplace=True)
+        self.maxpool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.conv_layer3 = nn.Conv2d(192, 384, kernel_size=3, padding=1)
+        self.relu3 = nn.ReLU(inplace=True)
+
+        self.conv_layer4 = nn.Conv2d(384, 256, kernel_size=3, padding=1)
+        self.relu4 = nn.ReLU(inplace=True)
+
+        self.conv_layer5 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+        self.relu5 = nn.ReLU(inplace=True)
+        self.maxpool3 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        # 定义全连接层和dropout层
+        self.fc1 = nn.Linear(256 * 2 * 2, 4096)
+        self.relu6 = nn.ReLU(inplace=True)
+        self.dropout1 = nn.Dropout()
+
+        self.fc2 = nn.Linear(4096, 4096)
+        self.relu7 = nn.ReLU(inplace=True)
+        self.dropout2 = nn.Dropout()
+
+        self.fc3 = nn.Linear(4096, num_classes)
 
     def forward(self, x):
-        x = self.features(x)
+        # 前向传播
+        x = self.conv_layer1(x)
+        x = self.relu1(x)
+        x = self.maxpool1(x)
+
+        x = self.conv_layer2(x)
+        x = self.relu2(x)
+        x = self.maxpool2(x)
+
+        x = self.conv_layer3(x)
+        x = self.relu3(x)
+
+        x = self.conv_layer4(x)
+        x = self.relu4(x)
+
+        x = self.conv_layer5(x)
+        x = self.relu5(x)
+        x = self.maxpool3(x)
+
         x = x.view(x.size(0), -1)
-        x = self.classifier(x)
+
+        x = self.fc1(x)
+        x = self.relu6(x)
+        x = self.dropout1(x)
+
+        x = self.fc2(x)
+        x = self.relu7(x)
+        x = self.dropout2(x)
+
+        x = self.fc3(x)
+
         return x
 
-def read_data():
-    transform_train = torchvision.transforms.Compose([
-        torchvision.transforms.RandomCrop(32, padding=4),
-        torchvision.transforms.RandomHorizontalFlip(),
-        torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    ])
 
-    transform_val = torchvision.transforms.Compose([
-        torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    ])
+#定义数据预处理
+transform = transforms.Compose([
+    transforms.RandomHorizontalFlip(),  # 随机水平翻转
+    transforms.RandomCrop(32, padding=4),  # 随机裁剪
+    transforms.ToTensor(),  # 转换为Tensor
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],  # 标准化
+                         std=[0.229, 0.224, 0.225])
+])
 
-    dataset_train = torchvision.datasets.CIFAR10(root='./data/exp03', train=True, download=True, transform=transform_train)
-    dataset_val = torchvision.datasets.CIFAR10(root='./data/exp03', train=False, download=True, transform=transform_val)
+# 加载数据集
+trainset = dset.CIFAR10(root='./data', train=True, download=True, transform=transforms.ToTensor())  # 训练集
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=0)
 
-    data_loader_train = DataLoader(dataset=dataset_train, batch_size=128, shuffle=True, num_workers=2)
-    data_loader_val = DataLoader(dataset=dataset_val, batch_size=128, shuffle=False, num_workers=2)
+testset = dset.CIFAR10(root='./data', train=False, download=True, transform=transforms.ToTensor())  # 测试集
+testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=0)
 
-    return dataset_train, dataset_val, data_loader_train, data_loader_val
+# 实例化AlexNet模型并将其移动到GPU上进行训练
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = AlexNet(num_classes=10).to(device)
 
-def train(model, data_loader_train, criterion, optimizer):
-    model.train()
-    for epoch in range(15):  # 增加训练轮数
-        running_loss = 0.0
-        for i, (inputs, labels) in enumerate(data_loader_train):
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-        print('Epoch [%d/%d], Loss: %.4f' % (epoch + 1, 20, running_loss / len(data_loader_train)))
+# 定义损失函数和优化器
+criterion = nn.CrossEntropyLoss()  # 交叉熵损失函数
+optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)  # 随机梯度接下来，我将向您展示如何在训练完成后测试AlexNet模型的精度。
 
-def evaluate(model, data_loader_val):
-    model.eval()
-    correct = 0
-    total = 0
+# 测试模型的函数
+def test(model, testloader):
+    correct = 0  # 正确预测的数量
+    total = 0  # 总共预测的数量
+
     with torch.no_grad():
-        for inputs, labels in data_loader_val:
-            outputs = model(inputs)
+        for data in testloader:
+            images, labels = data
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
 
     accuracy = 100 * correct / total
-    print('Accuracy on validation set: %.2f %%' % accuracy)
+    print('Accuracy of the network on the test images: %.2f %%' % accuracy)
 
-def read_data():
-    # 这里可自行修改数据预处理，batch大小也可自行调整
-    # 保持本地训练的数据读取和这里一致
-    dataset_train = torchvision.datasets.CIFAR10(root='../data/exp03', train=True, download=True, transform=torchvision.transforms.ToTensor())
-    dataset_val = torchvision.datasets.CIFAR10(root='../data/exp03', train=False, download=False, transform=torchvision.transforms.ToTensor())
-    data_loader_train = DataLoader(dataset=dataset_train, batch_size=256, shuffle=True)
-    data_loader_val = DataLoader(dataset=dataset_val, batch_size=256, shuffle=False)
-    return dataset_train, dataset_val, data_loader_train, data_loader_val
 
-def main():
-    model = NeuralNetwork() # 若有参数则传入参数
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.dirname(current_dir)
-    model.load_state_dict(torch.load(parent_dir + '/pth/model.pth'))
-    return model
-    
+# 训练模型
+for epoch in range(150):
+    running_loss = 0.0
+    for i, data in enumerate(trainloader, 0):
+        inputs, labels = data
+        inputs, labels = inputs.to(device), labels.to(device)
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+        if i % 100 == 99:  # 每100个batch输出一次损失值
+            print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 100))
+            running_loss = 0.0
+torch.save(model.state_dict(), './pth/model.pth')
+
+# 测试模型的精度
+test(model, testloader)
