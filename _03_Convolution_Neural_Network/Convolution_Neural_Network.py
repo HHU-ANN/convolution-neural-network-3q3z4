@@ -119,7 +119,7 @@ def test(model, testloader):
 
 
 # 训练模型
-for epoch in range(25):
+for epoch in range(150):
     running_loss = 0.0
     for i, data in enumerate(trainloader, 0):
         inputs, labels = data
@@ -134,7 +134,7 @@ for epoch in range(25):
         if i % 100 == 99:  # 每100个batch输出一次损失值
             print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 100))
             running_loss = 0.0
-torch.save(model.state_dict(), './pth/model.pth')
+torch.save(model.state_dict(), 'D:/convolution-neural-network-3q3z4/pth/model.pth')
 
 # 测试模型的精度
 test(model, testloader)
