@@ -119,7 +119,7 @@ def test(model, testloader):
 
 
 # 训练模型
-for epoch in range(150):
+for epoch in range(25):
     running_loss = 0.0
     for i, data in enumerate(trainloader, 0):
         inputs, labels = data
